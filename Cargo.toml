@@ -1,0 +1,18 @@
+[package]
+name = "muchtodo"
+version = "0.1.0"
+authors = ["Josh Sharp <josh@joshsharp.com.au>"]
+
+[dependencies]
+rocket = "0.3.15"
+rocket_codegen = "0.3.15"
+diesel = { version = "<= 1.2", features = ["postgres", "r2d2", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+
+[dependencies.rocket_contrib]
+version = "*"
+default-features = false
+features = ["json", "tera_templates"]
