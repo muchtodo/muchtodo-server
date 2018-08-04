@@ -1,4 +1,4 @@
-#![feature(plugin)]
+#![feature(plugin, custom_derive)]
 #![plugin(rocket_codegen)]
 extern crate rocket;
 extern crate rocket_contrib;
@@ -8,32 +8,19 @@ extern crate diesel;
 extern crate serde_derive;
 extern crate chrono;
 
-use rocket::fairing::AdHoc;
-use rocket_contrib::{Json, Value, Template};
-use rocket::http::{Header, Status};
-use diesel::prelude::*;
-use diesel::result::Error;
-use db::*;
-
 mod db;
 mod schema;
 mod models;
 mod guards;
+mod api;
+
+use rocket::fairing::AdHoc;
+use db::*;
+
 
 #[get("/")]
 fn index() -> &'static str {
-    "Hello, world!"
-}
-
-#[get("/tasks")]
-fn get_tasks(conn: DbConn, auth: guards::AccessTokenAuth) -> Result<Json<Vec<models::Task>>, Error> {
-    use ::schema::tasks::dsl::*;
-
-    match models::Task::belonging_to(&auth.user).load::<models::Task>(&*conn) {
-        Ok(t) => Ok(Json(t)),
-        Err(e) => Err(e)
-    }    
-    
+    "Congratulations! You've set up your Muchtodo server successfully."
 }
 
 fn main() {
@@ -42,10 +29,18 @@ fn main() {
             // create managed pool from db url config var
             let config = rocket.config().clone();
             let db_url = config.get_str("database_url").expect("No `database_url` specified in Rocket.toml");
-            let pool = init_pool(db_url);
+            let max_pool = config.get_int("database_max_pool").unwrap_or(8);
+            let pool = init_pool(db_url, max_pool as u32);
             Ok(rocket.manage(pool))
         }))
         .mount("/", routes![index])
-        .mount("/api/1/", routes![get_tasks])
+        .mount("/api/1/", 
+            routes![
+                api::get_tasks, 
+                api::get_tasks_active,
+                api::get_tasks_toplevel,
+                api::get_tasks_belongingto,
+                api::get_tasks_completed,
+            ])
         .launch();
 }

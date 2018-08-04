@@ -33,7 +33,6 @@ impl<'a, 'r> FromRequest<'a, 'r> for AccessTokenAuth {
             None => return Failure((Status::Unauthorized, ())),
         };
 
-        // That has two parts, the first of which is "Bearer" ...
         let components = components_vec.split(' ').collect::<Vec<&str>>();
         let decoded_value = match components[0] {
             "Bearer" => components[1],
@@ -41,12 +40,25 @@ impl<'a, 'r> FromRequest<'a, 'r> for AccessTokenAuth {
         };
 
         let token_obj: models::AccessToken = match access_tokens.filter(token.eq(decoded_value)).first(&conn) {
-            Ok(t_obj) => t_obj,
+            Ok(t) => {
+                let task_typed : models::AccessToken = t;
+                let now = Utc::now();
+                if task_typed.expires_at < now {
+                    return Failure((Status::Unauthorized, ()))
+                };
+                task_typed
+            },
             _ => return Failure((Status::Unauthorized, ())),
         };
 
         let user_obj = match users.find(token_obj.user_id).first(&conn) {
-            Ok(u_obj) => u_obj,
+            Ok(u) => {
+                let user_typed : models::User = u;
+                if !user_typed.is_active {
+                    return Failure((Status::Unauthorized, ()))
+                };
+                user_typed
+            },
             _ => return Failure((Status::Unauthorized, ())),
         };
 

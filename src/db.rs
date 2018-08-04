@@ -9,7 +9,9 @@ use std::ops::Deref;
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 // Connection request guard type: a wrapper around an r2d2 pooled connection.
-pub struct DbConn(pub PooledConnection<ConnectionManager<PgConnection>>);
+pub struct DbConn {
+    pub pool: PooledConnection<ConnectionManager<PgConnection>>
+}
 
 /// Attempts to retrieve a single connection from the managed database pool. If
 /// no pool is currently managed, fails with an `InternalServerError` status. If
@@ -20,7 +22,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for DbConn {
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         let pool = request.guard::<State<PgPool>>()?;
         match pool.get() {
-            Ok(conn) => Outcome::Success(DbConn(conn)),
+            Ok(conn) => Outcome::Success(DbConn{pool: conn}),
             Err(_) => Outcome::Failure((Status::ServiceUnavailable, ()))
         }
     }
@@ -31,16 +33,16 @@ impl Deref for DbConn {
     type Target = PgConnection;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.pool
     }
 }
 
 /// Initializes a database pool.
-pub fn init_pool(db_url: &str) -> PgPool {
+pub fn init_pool(db_url: &str, max_pool: u32) -> PgPool {
 
     let manager = ConnectionManager::<PgConnection>::new(db_url);
     Pool::builder()
-        .max_size(5)
+        .max_size(max_pool)
         .build(manager)
         .unwrap()
 }
